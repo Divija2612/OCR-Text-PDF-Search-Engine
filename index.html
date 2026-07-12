@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Old Book Search Engine</title>
+    <style>
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+}
+
+#left-panel{
+    width:40%;
+    height:100vh;
+    float:left;
+    border-right:1px solid gray;
+    padding:20px;
+    box-sizing:border-box;
+}
+
+#right-panel{
+    width:60%;
+    height:100vh;
+    float:left;
+    text-align:center;
+    padding-top:20px;
+    box-sizing:border-box;
+}
+
+.search-box{
+    margin-bottom:20px;
+}
+
+input{
+    width:70%;
+    padding:8px;
+    font-size:15px;
+}
+
+button{
+    padding:8px 15px;
+    font-size:15px;
+    cursor:pointer;
+}
+
+#results{
+    height:80%;
+    overflow-y:auto;
+}
+
+.result-item{
+    border:1px solid #bbb;
+    padding:10px;
+    margin-bottom:10px;
+    cursor:pointer;
+    background:white;
+}
+
+.result-item:hover{
+    background:#f2f2f2;
+}
+
+.meta{
+    font-size:13px;
+    color:#555;
+    margin-bottom:5px;
+}
+
+.placeholder{
+    color:gray;
+    margin-top:30px;
+}
+
+iframe{
+    width:95%;
+    height:90%;
+    border:1px solid gray;
+}
+</style>
+</head>
+<body>
+
+    <div id="left-panel">
+        <h2>📚 Full-Text OCR Search</h2>
+        <div class="search-box">
+            <input type="text" id="query" placeholder="Enter keywords (e.g., soul, poem, essay)..." onkeydown="if(event.key==='Enter') executeSearch()">
+            <button onclick="executeSearch()">Search</button>
+        </div>
+        <div id="results">
+            <div class="placeholder">Results will appear here. Click a card to view its corresponding PDF page.</div>
+        </div>
+    </div>
+
+    <div id="right-panel">
+        <div id="iframe-placeholder" class="placeholder">Select a text result to preview the source page view.</div>
+        <iframe id="pdf-viewer" style="display:none;"></iframe>
+    </div>
+
+    <script>
+        async function executeSearch() {//function to handle search queries and waits for server response
+            const queryText = document.getElementById('query').value;//if user types in a query, we will send it to the backend for processing
+            const resultsContainer = document.getElementById('results');//get the results container to display the results
+            
+            if (!queryText.trim()) return;
+            resultsContainer.innerHTML = '<div>Searching...</div>';
+
+            try {
+                // Fetch request pointing to your running Flask application endpoint
+                const response = await fetch(`http://localhost:8000/search?q=${encodeURIComponent(queryText)}`);//send the query to the backend server
+                const data = await response.json();//parse the response as JSON and await the results
+                
+                if (data.results && data.results.length > 0) {
+                    resultsContainer.innerHTML = '';
+                    data.results.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'result-item';//create a new div element for each result item and assign it the class 'result-item'
+    card.onclick = () => loadPdfPage(item.pdf_url, item.page_number, queryText);//open the PDF page in the right panel when a result card is clicked
+    
+    const cleanFileName = item.pdf_url.substring(item.pdf_url.lastIndexOf('/') + 1);//extract the file name from the PDF URL for display purposes
+    
+    // Notice item.text_content is used inside a dedicated div directly 
+     card.innerHTML = `
+        <div class="meta">📚 Book: ${cleanFileName}</div>
+        <div class="meta" style="color: #555;">📄 Page ${item.page_number} | Match Score: ${item.score.toFixed(2)}</div>
+        <div style="margin-top: 8px; line-height: 1.4; color: #333;">${item.text_content}</div>
+    `;
+    resultsContainer.appendChild(card);//append the card to the results container
+});
+                } else {
+                    resultsContainer.innerHTML = '<div class="placeholder">No matching text blocks found.</div>';
+                }
+            } catch (err) {
+                resultsContainer.innerHTML = '<div style="color:red;">Error connecting to backend server. Ensure main.py is running.</div>';
+            }
+        }
+
+            function loadPdfPage(pdfUrl, pageNum) {//function to load the PDF page in the iframe when a result card is clicked
+        document.getElementById('iframe-placeholder').style.display = 'none';//hide the placeholder text in the right panel
+    const iframe = document.getElementById('pdf-viewer');
+    iframe.style.display = 'block';//show the iframe for PDF viewing
+    
+    // Adding '&view=FitH' forces the browser's PDF engine to scale 
+    // horizontally to fit a single page dimension instead of displaying double pages.
+    iframe.src = `${pdfUrl}#page=${pageNum}&view=FitH`;
+}
+    </script>
+</body>
+</html>
